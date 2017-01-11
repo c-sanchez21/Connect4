@@ -1,0 +1,364 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace Connect4
+{
+    class Program
+    {
+        const int SIZE = 8; //Size for the NxN board.
+        const int maxdepth = 9;
+        const int CONNECT = 4; //How many pieces need to be connected to win.
+        static int[,] b = new int[SIZE, SIZE];
+        static int maxTime = 0; //Max Time Allowed for computer turn.
+        static DateTime startTime;
+
+        static void Main(string[] args)
+        {
+            setup();            
+            bool invalidTime = true;
+            while (invalidTime)
+            {
+                Console.Write("Max Amount of time allowed in seconds: ");
+                maxTime = int.Parse(Console.ReadLine());
+                invalidTime = (maxTime < 1 || maxTime > 30);
+                if (invalidTime)
+                    Console.WriteLine("Invalid Time");
+            }
+            Console.Write("Do you want to move first [Y/N]? ");
+            ConsoleKey keyPressed = Console.ReadKey().Key;
+            Console.WriteLine();
+            while (keyPressed != ConsoleKey.Y && keyPressed != ConsoleKey.N)
+            {
+                Console.WriteLine("Invalid Key");
+                Console.WriteLine();
+                keyPressed = Console.ReadKey().Key;               
+            }
+            if (keyPressed == ConsoleKey.N)
+                makemove();
+            printboard();
+            while (true)
+            {
+                getamove();
+                if (checkGameOver())
+                    break;
+                Console.WriteLine();
+                startTime = DateTime.Now;
+                makemove();
+                if (checkGameOver())
+                    break;
+                Console.WriteLine();
+            }
+            Console.Write("Push any key to exit...");
+            Console.ReadKey();
+        }
+
+        private static void printboard()
+        {
+            Console.Write("  ");
+            for (int i = 1; i <= SIZE; i++)
+                Console.Write(i.ToString() + " ");
+            Console.WriteLine();
+            
+            char c = 'A';            
+            int cVal = (int)'A';            
+
+            for (int j = 0; j < SIZE; j++)
+            {
+                Console.Write(c + " ");                    
+                for (int i = 0; i < SIZE; i++)
+                {
+                    if (b[j, i] == 2)
+                        Console.Write("O ");
+                    else if (b[j, i] == 1)
+                        Console.Write("X ");
+                    else Console.Write("- ");
+                }
+                Console.WriteLine();
+                cVal++;
+                c = (char)cVal;
+            }
+        }
+
+        private static void setup()
+        {
+            for (int i = 0; i < SIZE; i++)
+                for (int j = 0; j < SIZE; j++)
+                {
+                    b[j, i] = 0;
+                }
+        }
+
+        private static void getamove()
+        {
+            int i=0, j=0;
+            bool invalidMove = true;
+            while (invalidMove)
+            {
+                Console.Write("Enter your move: ");
+                string line = Console.ReadLine().ToUpper();
+                string[] data;
+                if (!String.IsNullOrEmpty(line))
+                {
+                    if (!line.Contains(" ")) //If move coordinates not seperated by spaces
+                    {
+                        data = new string[2];
+                        data[0] = line.Substring(0, 1);
+                        data[1] = line.Substring(1, 1);
+                    }
+                    else data = line.Split(' ');//Else if move cordiantes seperated by spaces
+                    j = (int)data[0].ToCharArray()[0] - (int)'A';
+                    //j = int.Parse(data[0]);
+                    if (int.TryParse(data[1], out i))
+                        i -= 1;
+                    else i = -1;
+                    if (j > -1 && j < SIZE && i > -1 && i < SIZE && b[j, i] == 0)
+                        invalidMove = false;
+                    else Console.WriteLine("Invalid Move");
+                }
+            }
+            b[j, i] = 2;
+        }
+
+        private static int evaluate()
+        {
+            int CompCount;
+            //int xCompSum = 0;
+            int PlayerCount;
+            int sum = 0;
+            //int xPlayerSum = 0;
+            int blanks = 0;
+            int val = 0;
+            for (int j = 0; j < SIZE; j++)
+            {
+                //Check Rows
+                for (int i = 0; i < SIZE; i++)
+                {
+                    PlayerCount = 0;
+                    CompCount = 0;//Number of X's
+                    blanks = 0;//Number of Blanks
+                    int count = 0;
+                    for (int x = i; x < CONNECT + i && x < SIZE;  x++)
+                    {
+                        if (b[j, x] == 2)
+                            PlayerCount++;
+
+                        if (b[j, x] == 1)
+                            CompCount++;
+
+                        if (b[j, x] == 0)
+                            blanks++;
+                        count++;
+                    }
+                    if (PlayerCount > CompCount)
+                        sum += (int)Math.Pow(10, PlayerCount + CompCount);
+                    else if ((CompCount + blanks) == CONNECT)
+                        sum += (int)Math.Pow(10, CompCount);
+                    else if ((PlayerCount + blanks) == CONNECT)
+                        sum -= ((int)Math.Pow(10, PlayerCount) + 10 * PlayerCount);
+                    //else sum += CompCount * 10 - PlayerCount * 10;
+
+                    PlayerCount = 0;
+                    CompCount = 0;
+                    blanks = 0;
+                    for (int y = i; y < CONNECT + i && y < SIZE; y++)
+                    {
+                        if (b[y, j] == 2)
+                            PlayerCount++;
+
+                        if (b[y, j] == 1)
+                            CompCount++;
+
+                        if (b[y, j] == 0)
+                            blanks++;
+                    }
+                    if (PlayerCount > CompCount)
+                        sum += (int)Math.Pow(10, PlayerCount + CompCount);
+                    else if ((CompCount + blanks) == CONNECT)
+                        sum += (int)Math.Pow(10, CompCount);
+                    else if ((PlayerCount + blanks) == CONNECT)
+                        sum -= ((int)Math.Pow(10, PlayerCount) + (10 * PlayerCount));
+                    //else sum += CompCount * 10 - PlayerCount * 10;
+
+
+                }
+            }
+
+            return sum;
+        }
+
+        private static void makemove() //AI 
+        {
+            int best = int.MinValue;
+            int depth = maxdepth;
+            int score, mi = 0, mj = 0;
+            for (int j = 0; j < SIZE; j++)
+                for (int i = 0; i < SIZE; i++)
+                {
+                    if (b[j, i] == 0)
+                    {
+                        b[j, i] = 1;//Make move;
+                        score = min(depth - 1,int.MinValue, int.MaxValue);
+                        if (score > best)
+                        {
+                            mi = i;
+                            mj = j;
+                            best = score;
+                        }
+                        b[j, i] = 0; //Undo move;
+
+                    }
+                }
+            int cVal = ((int)'A') + mj;
+            Console.WriteLine("My move is " + (char)cVal + " " + (mi+1));
+            b[mj, mi] = 1;
+        }
+
+        private static int min(int depth, int alpha, int beta)
+        {
+            int v = int.MaxValue;
+            //int score;
+            if (check4winner() != 0)  // Check for Terminal
+                return (check4winner());
+            if (depth == 0 || (DateTime.Now - startTime).TotalSeconds >= maxTime) 
+                return (evaluate());
+            for (int j = 0; j < SIZE; j++)
+            {
+                for (int i = 0; i < SIZE; i++)
+                {
+                    if (b[j,i] == 0)
+                    {
+                        b[j,i] = 2; // make move on board
+                        //score = max(depth - 1);
+                        v = Math.Min(v, max(depth - 1, alpha, beta));
+                        if (v <= alpha)
+                        {
+                            b[j, i] = 0;//undo move
+                            return v;
+                        }
+                        beta = Math.Min(beta, v);                        
+                        /*
+                        if (score < best) 
+                            best = score;
+                         */
+                        b[j,i] = 0; // undo move
+                    }
+                }
+            }
+            return (v);
+        }
+
+        private static int max(int depth, int alpha, int beta)
+        {
+            int v = int.MinValue;
+            //int best = int.MinValue;
+            //int score;
+            if (check4winner() != 0) 
+                return (check4winner());
+            if (depth == 0 || (DateTime.Now - startTime).TotalSeconds >= maxTime) 
+                return (evaluate());
+            for (int j = 0; j < SIZE; j++)
+            {
+                for (int i = 0; i < SIZE; i++)
+                {
+                    if (b[j,i] == 0)
+                    {
+                        b[j,i] = 1; // make move on board
+                        v = Math.Max(v, min(depth - 1, alpha, beta));
+                        if (v >= beta)
+                        {
+                            b[j, i] = 0; //undo move
+                            return v;
+                        }
+                        alpha = Math.Max(alpha, v);
+
+                        //score = min(depth - 1);
+                        /*
+                        if (score > best) 
+                            best = score;
+                         */
+                        b[j,i] = 0; // undo move
+                    }
+                }
+            }
+            return (v);
+        }
+        
+        private static int check4winner()
+        {
+            
+            int emptySpacesCount = 0;
+            for (int j = 0; j < SIZE; j++)
+            {
+                int XcomputerCount = 0;
+                int XplayerCount = 0;
+
+                int YcomputerCount = 0;
+                int YplayerCount = 0;
+                //Assumes NxN board else OutOfIndex crash
+                for (int i = 0; i < SIZE; i++)
+                {
+                    //Check Horizontal
+                    if (b[j, i] == 1)
+                        XcomputerCount++;
+                    else XcomputerCount = 0;
+
+                    if (b[j, i] == 2)
+                        XplayerCount++;
+                    else XplayerCount = 0;
+
+                    if (XcomputerCount == CONNECT)
+                        return int.MaxValue;//Comptuer Wins;
+                    if (XplayerCount == CONNECT)
+                        return int.MinValue;//Player Wins;
+                    
+                    //Check Vertical
+                    if (b[i, j] == 1)
+                        YcomputerCount++;
+                    else YcomputerCount = 0;
+
+                    if (b[i, j] == 2)
+                        YplayerCount++;
+                    else YplayerCount = 0;
+
+                    if (YcomputerCount == CONNECT)
+                        return int.MaxValue;//Comptuer Wins;
+                    if (YplayerCount == CONNECT)
+                        return int.MinValue;//Player Wins;
+
+                    if (b[i, j] == 0)
+                        emptySpacesCount++;
+                }
+            }
+            if(emptySpacesCount == 0)
+                return 1; //Draw
+            return 0; 
+        }
+
+        private static bool checkGameOver()
+        {
+            printboard();
+            string s = "";
+            bool gameOver = false;
+            int winner = check4winner();
+            if (winner != 0)
+            {
+                gameOver = true;
+                switch (winner)
+                {
+                    case int.MinValue:
+                        s = "You win";
+                        break;
+                    case int.MaxValue:
+                        s = "I win";
+                        break;
+                    case 1:
+                        s = "Draw";
+                        break;
+                }
+                Console.WriteLine(s);
+            }
+            return gameOver;
+        } 
+    }
+}
